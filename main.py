@@ -41,29 +41,21 @@ while True:
 	polopublic.refresh(config)
 	poloprivate.refresh(config)
 
-	current_bb = getBB(polopublic.data_chart, config["bb_length"], config["bb_std"])
-
 	if poloprivate.status == "none":
 		BOT_COMMENT = poloprivate.open(
-			current_bb,
-			polopublic.data_ticker["lowestAsk"],
-			polopublic.data_ticker["highestBid"]
+			polopublic.data_chart
 		)
 
 	else:
 		BOT_COMMENT = poloprivate.close()
 		BOT_COMMENT += poloprivate.update_open(
-			current_bb,
-			polopublic.data_ticker["lowestAsk"],
-			polopublic.data_ticker["highestBid"]
+			polopublic.data_chart
 		)
 
 	printSuccess("\n--------- Cycle: %s ----------" % BOT_CYCLE)
 	printHeader("---------- %s ----------" % BOT_PAIR)
 	if poloprivate.status == "none":
 		printInfo("Last closing time .............: %s" % poloprivate.closing_time)
-		printInfo("Upper band ....................: %s" % formatFloat(current_bb["upper_band"]))
-		printInfo("Lower band ....................: %s" % formatFloat(current_bb["lower_band"]))
 		printInfo("Opening price .................: %s" % formatFloat(poloprivate.last_opening_dict["rate"]))
 		printInfo("Target position ...............: %s" % poloprivate.last_opening_dict["type"])
 		printInfo("Status ........................: %s >> %s" % (poloprivate.status.upper(), BOT_COMMENT))
@@ -77,3 +69,4 @@ while True:
 		printSuccess("Turnovers .....................: %s" % poloprivate.get_turnovers())
 
 	BOT_CYCLE += 1
+	time.sleep(5)

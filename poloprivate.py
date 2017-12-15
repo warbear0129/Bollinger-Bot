@@ -1,4 +1,4 @@
-import os, poloniex, time, datetime
+import os, poloniex, time, datetime, algorithms
 from utils import *
 
 class PoloPrivate(object):
@@ -9,11 +9,11 @@ class PoloPrivate(object):
 	"""
 
 	def __init__(self, pair, config):
+		self._config = config
+
 		self._balance_max = config["maxbalance"]
 		self._profit_margin = config["profitmargin"]
 		self._stop_limit = config["stoplimit"]
-		self._long_margin = config["longmargin"]
-		self._short_margin = config["shortmargin"]
 		self._maximum_delta = config["delta"]
 		self._stop_limit_timeout = config["stoplimittimeout"]
 		self._margin_close_timeout = config["marginclosetimeout"]
@@ -77,10 +77,9 @@ class PoloPrivate(object):
 
 
 	def refresh(self, config):
+		self._config = config
 		self._balance_max = config["maxbalance"]
 		self._stop_limit = config["stoplimit"]
-		self._long_margin = config["longmargin"]
-		self._short_margin = config["shortmargin"]
 		self._profit_margin = config["profitmargin"]
 		self._maximum_delta = config["delta"]
 		self._stop_limit_timeout = config["stoplimittimeout"]
@@ -96,8 +95,8 @@ class PoloPrivate(object):
 			# On margin position close
 			if self.status != "none":
 				self._cancel_open_orders()
-				printSuccess("Margin position closed, will wait %s hours" % self._margin_close_timeout)
-				time.sleep(3600 * self._margin_close_timeout)
+				printSuccess("Margin position closed, will wait %s minutes" % self._margin_close_timeout)
+				time.sleep(60 * self._margin_close_timeout)
 				self._balance = self._check_balance()
 				self._turnovers.append(self.status)
 				self._closing_time = datetime.datetime.utcnow().strftime("%d/%m/%Y  %H:%M")
@@ -118,9 +117,9 @@ class PoloPrivate(object):
 
 
 
-	def open(self, bb, lowest_ask, highest_bid):
+	def open(self, chart_Data):
 		result = ""
-		dict_opening_order = self._create_opening_order(bb, lowest_ask, highest_bid)
+		dict_opening_order = self._create_opening_order(chart_Data)
 
 		if self._opening_order == {} and dict_opening_order["delta"] <= self._maximum_delta:
 			if dict_opening_order["type"] != self._last_opening_dict["type"]:
@@ -159,9 +158,9 @@ class PoloPrivate(object):
 		return result
 
 	
-	def update_open(self, bb, lowest_ask, highest_bid):
+	def update_open(self, chart_Data):
 		result = ", "
-		dict_opening_order = self._create_opening_order(bb, lowest_ask, highest_bid)
+		dict_opening_order = self._create_opening_order(chart_Data)
 
 		if self._opening_order != {}:
 			if dict_opening_order["delta"] > self._maximum_delta or dict_opening_order["type"] != self._last_opening_dict["type"]:
@@ -225,7 +224,7 @@ class PoloPrivate(object):
 		if float(self._margin_position["pl"]) <= -(self._balance * self._stop_limit):
 			result = self._force_close("Stop limit triggered")
 			printError("Stop limit triggered, will wait %s hours" % self._stop_limit_timeout)
-			time.sleep(self._stop_limit_timeout * 3600)
+			time.sleep(self._stop_limit_timeout * 60)
 
 		elif dict_closing_order["rate"] < 0 or float(self._margin_position["basePrice"]) < 0:
 			result = self._force_close("Invalid rate")
@@ -368,48 +367,30 @@ class PoloPrivate(object):
 		return dict_closing_order
 
 
-	def _create_opening_order(self, bb, lowest_ask, highest_bid):
-			dict_opening_order = {}
+	def _create_opening_order(self, chart_Data):
+		bollinger_algo = algorithms.Bollinger(self._config)
+		dict_opening_order = bollinger_algo.create_order(chart_Data)
 
-			opening_rate_short = float(bb["upper_band"]) * self._short_margin
-			opening_rate_long = float(bb["lower_band"]) * self._long_margin
+		if dict_opening_order["type"] == "LONG":
+			dict_opening_order["func"] = self._client.marginBuy
+		else:
+			dict_opening_order["func"] = self._client.marginSell
 
-			delta_short = getDelta(opening_rate_short, lowest_ask)
-			delta_long = getDelta(opening_rate_long, highest_bid)
+		if self._status == "none":
+			dict_opening_order["amount"] = getAmount(self._balance, dict_opening_order["rate"])
 
-			if delta_long <= delta_short:
-				dict_opening_order["func"] = self._client.marginBuy
-				dict_opening_order["rate"] = opening_rate_long
-				dict_opening_order["delta"] = delta_long
-				dict_opening_order["type"] = "LONG"
+		else:
+			dict_opening_order["amount"] = getAmount(self._balance - abs(float(self._margin_position["total"])), dict_opening_order["rate"])
 
-				if float(highest_bid) <= opening_rate_long:
-					dict_opening_order["delta"] = 0
-			
-			else:
-				dict_opening_order["func"] = self._client.marginSell
-				dict_opening_order["rate"] = opening_rate_short
-				dict_opening_order["delta"] = delta_short
-				dict_opening_order["type"] = "SHORT"
+		if dict_opening_order["amount"] == -1:
+			dict_opening_order["delta"] = 9999999999
 
-				if float(lowest_ask) >= opening_rate_short:
-					dict_opening_order["delta"] = 0
+		dict_opening_order["total"] = dict_opening_order["amount"] * dict_opening_order["rate"]
 
-			if self._status == "none":
-				dict_opening_order["amount"] = getAmount(self._balance, dict_opening_order["rate"])
+		if self._last_opening_dict == {}:
+			self._last_opening_dict = dict_opening_order
 
-			else:
-				dict_opening_order["amount"] = getAmount(self._balance - abs(float(self._margin_position["total"])), dict_opening_order["rate"])
-
-			if dict_opening_order["amount"] == -1:
-				dict_opening_order["delta"] = 9999999999
-
-			dict_opening_order["total"] = dict_opening_order["amount"] * dict_opening_order["rate"]
-
-			if self._last_opening_dict == {}:
-				self._last_opening_dict = dict_opening_order
-
-			return dict_opening_order
+		return dict_opening_order
 
 
 	def _check_API(self):
