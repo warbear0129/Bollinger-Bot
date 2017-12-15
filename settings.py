@@ -49,6 +49,7 @@ class Settings(object):
 			self.c.set('Settings', 'stopLimit', 0.05)
 			self.c.set('Settings', 'stopLimitTimeout', 2)
 			self.c.set('Settings', 'marginCloseTimeout', 2)
+			self.c.set('Settings', "cycletimeout", 0)
 			self.c.write(f)
 
 		printSuccess("Config file generated, please modify the config file and re-run this script")

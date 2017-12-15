@@ -69,4 +69,4 @@ while True:
 		printSuccess("Turnovers .....................: %s" % poloprivate.get_turnovers())
 
 	BOT_CYCLE += 1
-	time.sleep(5)
+	time.sleep(int(config["cycletimeout"]))
