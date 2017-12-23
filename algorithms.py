@@ -13,7 +13,7 @@ class Bollinger(object):
         data_list = []
 
         for cd in chart_Data:
-            data_list.append({"price": cd["close"]})
+            data_list.append({"high": cd["high"], "low": cd["low"]})
 
         df = pd.DataFrame(data_list)
 
