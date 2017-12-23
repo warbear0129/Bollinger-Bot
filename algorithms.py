@@ -17,10 +17,13 @@ class Bollinger(object):
 
         df = pd.DataFrame(data_list)
 
-        df["std"] = df["price"].rolling(window=int(self._bb_length)).std()
-        df["sma"] = df["price"].rolling(window=int(self._bb_length)).mean()
-        df["upper_band"] = df["sma"] + (df["std"] * int(self._bb_std))
-        df["lower_band"] = df["sma"] - (df["std"] * int(self._bb_std))
+        df["std_high"] = df["high"].rolling(window=10).std()
+        df["sma_high"] = df["high"].rolling(window=10).mean()
+        df["upper_band"] = df["sma_high"] + (df["std_high"] * 2)
+
+        df["std_low"] = df["low"].rolling(window=10).std()
+        df["sma_low"] = df["low"].rolling(window=10).mean()
+        df["lower_band"] = df["sma_low"] - (df["std_low"] * 2)
 
         return df.tail(1).to_dict(orient='records')[0]
 
